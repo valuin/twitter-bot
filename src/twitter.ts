@@ -103,9 +103,10 @@ const createTweetThrottle = pThrottle(
   twitterApiRateLimitsByPlan[config.twitterApiPlan].createTweet
 )
 
-const usersIdMentionsThrottle = pThrottle(
-  twitterApiRateLimitsByPlan[config.twitterApiPlan].usersIdMentions
-)
+const usersIdMentionsThrottle = pThrottle({
+  limit: twitterApiRateLimitsByPlan[config.twitterApiPlan].usersIdMentions.limit,
+  interval: twitterApiRateLimitsByPlan[config.twitterApiPlan].usersIdMentions.interval
+})(async () => {})
 
 const findTweetByIdThrottle = pThrottle(
   twitterApiRateLimitsByPlan[config.twitterApiPlan].findTweetById
@@ -116,9 +117,6 @@ const findTweetsByIdThrottle = pThrottle(
 )
 
 export const createTweet = createTweetThrottle(createTweetImpl)
-export const usersIdMentionsThrottleWorkaround = usersIdMentionsThrottle(
-  async () => {}
-)
 export const findTweetById = findTweetByIdThrottle(findTweetByIdImpl)
 export const findTweetsById = findTweetsByIdThrottle(findTweetsByIdImpl)
 
@@ -230,7 +228,8 @@ async function createTweetImpl(
   }
 }
 
-export function usersIdMentions(
+
+export async function* usersIdMentions(
   userId: string,
   ctx: Pick<types.Context, 'twitterClient'>,
   params?: UsersIdMentionsParams
@@ -241,7 +240,10 @@ export function usersIdMentions(
       ...params
     })
 
-    return mentionsQuery
+    for await (const page of mentionsQuery) {
+      await usersIdMentionsThrottle() // This is the throttle for each page
+      yield page
+    }
   } catch (err: any) {
     console.error('error fetching user mentions', err)
 

@@ -87,5 +87,10 @@
       "no-use-before-define": "off",
       "import/consistent-type-specifier-style": "off"
     }
+  },
+  "pnpm": {
+    "overrides": {
+      "openai-fetch": "2.1.0"
+    }
   }
 }

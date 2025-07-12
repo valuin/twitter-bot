@@ -21,6 +21,23 @@ export type ScrapeResult = {
   title: string
 }
 
+interface FirecrawlScrapeData {
+  content: string
+  markdown: string
+  html: string
+  title: string
+  description: string
+  image: string
+  ogImage: string
+  author: string
+  publishedDate: string
+  sourceUrl: string
+}
+
+interface FirecrawlScrapeResponse {
+  data: FirecrawlScrapeData
+}
+
 /**
  * This is a single endpoint API for scraping websites. It returns the HTML,
  * markdown, and plaintext for main body content of the page, as well as
@@ -31,22 +48,30 @@ export type ScrapeResult = {
  */
 export class ScraperClient {
   readonly apiBaseUrl: string
+  readonly apiKey?: string
   readonly ky: KyInstance
 
   constructor({
-    apiBaseUrl = process.env.SCRAPER_API_BASE_URL,
+    apiBaseUrl = 'https://api.firecrawl.dev',
+    apiKey = process.env.FIRECRAWL_API_KEY,
     ky = defaultKy
   }: {
     apiKey?: string
     apiBaseUrl?: string
     ky?: KyInstance
   } = {}) {
-    if (!apiBaseUrl) {
-      throw new Error('SCRAPER_API_BASE_URL is required')
+    if (!apiKey) {
+      throw new Error('FIRECRAWL_API_KEY is required')
     }
 
     this.apiBaseUrl = apiBaseUrl
-    this.ky = ky.extend({ prefixUrl: this.apiBaseUrl })
+    this.apiKey = apiKey
+    this.ky = ky.extend({
+      prefixUrl: this.apiBaseUrl,
+      headers: {
+        'x-api-key': this.apiKey
+      }
+    })
   }
 
   async scrapeUrl(
@@ -57,11 +82,30 @@ export class ScraperClient {
       timeout?: number
     } = {}
   ): Promise<ScrapeResult> {
-    return this.ky
-      .post('scrape', {
+    const response = (await this.ky
+      .post('v1/scrape', {
         json: { url },
         timeout
       })
-      .json()
+      .json()) as FirecrawlScrapeResponse
+
+    const data = response.data
+
+    return {
+      author: data.author || '',
+      byline: '', // Firecrawl does not provide byline directly
+      content: data.content || '',
+      description: data.description || '',
+      imageUrl: data.image || data.ogImage || '',
+      lang: '', // Firecrawl does not provide lang directly
+      length: data.content?.length || 0,
+      logoUrl: '', // Firecrawl does not provide logoUrl directly
+      markdownContent: data.markdown || '',
+      publishedTime: data.publishedDate || '',
+      rawHtml: data.html || '',
+      siteName: data.title || '', // Using title as a fallback for siteName
+      textContent: data.content || '',
+      title: data.title || ''
+    }
   }
 }

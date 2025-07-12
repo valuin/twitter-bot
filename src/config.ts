@@ -12,8 +12,11 @@ export const nangoConnectionId = process.env.NANGO_CONNECTION_ID!
 export const nangoCallbackUrl =
   process.env.NANGO_CALLBACK_URL ?? 'https://api.nango.dev/oauth/callback'
 
-export const twitterApiPlan: types.TwitterApiPlan =
-  (process.env.TWITTER_API_PLAN as types.TwitterApiPlan) ?? 'free'
+export const twitterApiPlan = (process.env.TWITTER_API_PLAN || 'pro') as types.TwitterApiPlan
+
+export const filterMentionsByVerified = false
+// Boolean(process.env.FILTER_MENTIONS_BY_VERIFIED)
+
 
 if (twitterApiPlan === 'free') {
   throw new Error(

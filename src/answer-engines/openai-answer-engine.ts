@@ -12,7 +12,7 @@ export class OpenAIAnswerEngine extends AnswerEngine {
     type = 'openai',
     chatModel = new ChatModel({
       params: {
-        model: 'gpt-4-0125-preview'
+        model: 'gpt-4o-mini'
       }
     })
   }: { type?: types.AnswerEngineType; chatModel?: ChatModel } = {}) {

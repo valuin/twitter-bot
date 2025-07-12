@@ -1,4 +1,5 @@
 import { BotError } from './bot-error.js'
+import * as config from './config.js'
 import * as db from './db.js'
 import * as twitter from './twitter.js'
 import { handleKnownTwitterErrors, maxTwitterId } from './twitter-utils.js'
@@ -66,18 +67,16 @@ export async function getTwitterUserIdMentions(
     })
 
     try {
-      await twitter.usersIdMentionsThrottleWorkaround()
-
-      const mentionsQuery = twitter.usersIdMentions(userId, ctx, {
-        max_results: 100,
-        ...opts,
-        since_id: result.sinceMentionId
-      })
-
-      let numMentionsInQuery = 0
-      let numPagesInQuery = 0
-
-      for await (const page of mentionsQuery) {
+       const mentionsQuery = twitter.usersIdMentions(userId, ctx, {
+         max_results: 100,
+         ...opts,
+         since_id: result.sinceMentionId
+       })
+ 
+       let numMentionsInQuery = 0
+       let numPagesInQuery = 0
+ 
+       for await (const page of mentionsQuery) {
         numPagesInQuery++
 
         if (page.data?.length) {
@@ -97,11 +96,15 @@ export async function getTwitterUserIdMentions(
         }
 
         if (page.includes?.users) {
-          for (const user of page.includes.users) {
+          const usersToUpsert = config.filterMentionsByVerified
+            ? page.includes.users.filter((user: types.TwitterUser) => user.verified)
+            : page.includes.users
+
+          for (const user of usersToUpsert) {
             result.users[user.id] = user
           }
 
-          await db.upsertTwitterUsers(Object.values(page.includes.users))
+          await db.upsertTwitterUsers(Object.values(usersToUpsert))
         }
 
         if (page.includes?.tweets) {
@@ -112,7 +115,6 @@ export async function getTwitterUserIdMentions(
           await db.upsertTweets(Object.values(page.includes.tweets))
         }
 
-        await twitter.usersIdMentionsThrottleWorkaround()
       }
 
       console.log({ numMentionsInQuery, numPagesInQuery })
