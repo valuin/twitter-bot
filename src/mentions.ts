@@ -269,6 +269,32 @@ export async function populateTweetMentionsBatch(
 }
 
 /**
+ * Returns info on all mentions in a tweet.
+ *
+ * @TODO Add unit tests for this
+ */
+export function getAllMentionsInText(
+  text = '',
+  ctx: types.Context
+) {
+  const allUsernames = (text.match(/@[a-zA-Z0-9_]+\b/g) || []).map(
+    (u: string) => u.trim().toLowerCase().replace(',', '')
+  )
+  let botMentionsCount = 0
+
+  for (const username of allUsernames) {
+    if (username === ctx.twitterBotHandleL) {
+      botMentionsCount++
+    }
+  }
+
+  return {
+    botMentionsCount,
+    allUsernames
+  }
+}
+
+/**
  * Returns info on the mentions at the start of a tweet.
  *
  * @TODO Add unit tests for this
@@ -318,7 +344,9 @@ export async function isValidMention(
   batch: types.PartialTweetMentionBatch,
   ctx: types.Context
 ): Promise<boolean> {
+  console.log('isValidMention: checking mention', getDebugMention(mention))
   if (!mention) {
+    console.log('isValidMention: returning false - mention is null/undefined')
     return false
   }
 
@@ -329,6 +357,7 @@ export async function isValidMention(
   }
 
   if (config.tweetIgnoreList.has(mention.id!)) {
+    console.log('isValidMention: returning false - mention in ignore list')
     return false
   }
 
@@ -346,6 +375,7 @@ export async function isValidMention(
         )
       }
 
+      console.log('isValidMention: returning false - mention from known bot')
       return false
     }
   }
@@ -354,7 +384,7 @@ export async function isValidMention(
     (t) => t.type === 'replied_to'
   )
   const repliedToTweet = repliedToTweetRef
-    ? await db.tryGetTweetById(repliedToTweetRef.id, ctx)
+    ? await db.tryGetTweetById(repliedToTweetRef.id, ctx, { fetchFromTwitter: true })
     : null
   const isReply = !!repliedToTweetRef
   const repliedToMention = repliedToTweet
@@ -376,6 +406,7 @@ export async function isValidMention(
       console.log('ignoring mention 1', getDebugMention(mention))
     }
 
+    console.log('isValidMention: returning false - is reply but no repliedToTweet')
     return false
   }
 
@@ -395,9 +426,10 @@ export async function isValidMention(
     return false
   }
 
-  const { numMentions, usernames } = getPrefixMentionsInText(text, ctx, {
+  const { numMentions: prefixNumMentions, usernames: prefixUsernames } = getPrefixMentionsInText(text, ctx, {
     isReply
   })
+  const { botMentionsCount, allUsernames } = getAllMentionsInText(text, ctx)
 
   if (!mention.prompt) {
     if (isReply) {
@@ -413,6 +445,7 @@ export async function isValidMention(
         )
       }
 
+      console.log('isValidMention: returning false - empty prompt after reply logic')
       return false
     }
   }
@@ -422,16 +455,14 @@ export async function isValidMention(
   }
 
   if (
-    numMentions > 0 &&
-    (usernames[usernames.length - 1] === ctx.twitterBotHandleL ||
-      (numMentions === 1 && !isReply))
+    allUsernames.includes(ctx.twitterBotHandleL)
     // (isReply && repliedToTweet?.author_id === ctx.twitterBotUserId)
   ) {
     if (
       isReply &&
       !ctx.forceReply &&
-      (repliedToMention?.numMentions! > numMentions ||
-        (repliedToMention?.numMentions === numMentions &&
+      (repliedToMention?.numMentions! > prefixNumMentions ||
+        (repliedToMention?.numMentions === prefixNumMentions &&
           repliedToMention?.isReply))
     ) {
       if (isDebugTweet) {
@@ -440,15 +471,16 @@ export async function isValidMention(
           getDebugMention(mention),
           {
             isReply,
-            numMentions,
-            usernames
+            prefixNumMentions,
+            prefixUsernames
           }
         )
       }
 
+      console.log('isValidMention: returning false - reply logic 0')
       batch.updateSinceMentionId(mention.id!)
       return false
-    } else if (numMentions === 1) {
+    } else if (prefixNumMentions === 1) {
       // TODO: I don't think this is necessary anymore
       // if (isReply && mention.in_reply_to_user_id !== twitterBotUserId) {
       //   batch.updateSinceMentionId(mention.id)
@@ -462,8 +494,8 @@ export async function isValidMention(
         getDebugMention(mention),
         {
           isReply,
-          numMentions,
-          usernames
+          prefixNumMentions,
+          prefixUsernames
         }
       )
     }
@@ -474,11 +506,12 @@ export async function isValidMention(
 
   if (isDebugTweet) {
     console.log('valid mention', getDebugMention(mention), {
-      numMentions,
+      prefixNumMentions,
       isReply,
-      usernames
+      prefixUsernames
     })
   }
 
+  console.log('isValidMention: returning true - passed all checks')
   return true
 }

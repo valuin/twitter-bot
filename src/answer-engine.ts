@@ -27,15 +27,36 @@ export abstract class AnswerEngine {
 
   async populateMessageResponse(
     message: types.Message,
-    ctx: types.AnswerEngineContext
+    ctx: types.AnswerEngineContext,
+    opts: { chatMessages?: types.AnswerEngineMessage[] } = {}
   ) {
-    const query = await this.resolveMessageThread(message, ctx)
+    let query: types.AnswerEngineQuery
+
+    if (opts.chatMessages) {
+      // If chatMessages are provided, use them directly
+      query = {
+        message,
+        chatMessages: opts.chatMessages.map(({ tweetId: _, ...msg }) => msg),
+        rawChatMessages: [], // We don't have raw messages in this path
+        tweets: [], // We don't have tweets in this path
+        entityMap: {},
+        rawEntityMap: { users: {}, tweets: {}, urls: {} }
+      }
+      console.log(`\n>>> ${this.type} answer engine (using provided chatMessages)`)
+    } else {
+      // Otherwise, resolve the message thread as usual
+      query = await this.resolveMessageThread(message, ctx)
+      console.log(`\n>>> ${this.type} answer engine (resolving message thread)`)
+    }
+
     console.log(
-      `\n>>> ${this.type} answer engine`,
+      `answer engine query:`,
       pick(query, 'message', 'chatMessages', 'tweets', 'entityMap')
     )
 
+    console.log(`Calling _generateResponseForQuery...`)
     message.response = await this.generateResponseForQuery(query, ctx)
+    console.log(`_generateResponseForQuery returned.`)
 
     console.log(
       `<<< ${this.type} answer engine response for message ${message.id}`,

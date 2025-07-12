@@ -14,6 +14,8 @@ export const nangoCallbackUrl =
 
 export const twitterApiPlan = (process.env.TWITTER_API_PLAN || 'pro') as types.TwitterApiPlan
 
+export const twitterApiIoApiKey = process.env.TWITTERAPI_IO_API_KEY
+
 export const filterMentionsByVerified = false
 // Boolean(process.env.FILTER_MENTIONS_BY_VERIFIED)
 

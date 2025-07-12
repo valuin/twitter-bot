@@ -3,6 +3,7 @@ import pMap from 'p-map'
 import * as db from '../src/db.js'
 import { BotError } from './bot-error.js'
 import { getTweetMentionsBatch } from './mentions.js'
+import { getConversationHistory } from './twitter-mentions.js'
 import { checkModeration } from './moderations.js'
 import { createTweet } from './twitter.js'
 import { getTweetUrl, maxTwitterId, minTwitterId } from './twitter-utils.js'
@@ -181,7 +182,30 @@ export async function respondToNewMentions(ctx: types.Context) {
               return message
             }
 
-            await ctx.answerEngine.populateMessageResponse(message, ctx)
+            const conversationHistory = await getConversationHistory(mention, ctx)
+
+            const chatMessages: types.AnswerEngineMessage[] = conversationHistory.map(
+              (tweet: types.Tweet) => {
+                const role: types.Role =
+                  tweet.author_id === ctx.twitterBotUserId ? 'assistant' : 'user'
+                return {
+                  role,
+                  content: tweet.text!,
+                  tweetId: tweet.id
+                }
+              }
+            )
+
+            // Append the current mention as a user message
+            chatMessages.push({
+              role: 'user',
+              content: prompt,
+              tweetId: promptTweetId
+            })
+
+            await ctx.answerEngine.populateMessageResponse(message, ctx, {
+              chatMessages
+            })
 
             const responseModerationResult = await checkModeration(
               message.response,

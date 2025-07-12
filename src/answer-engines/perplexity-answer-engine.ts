@@ -18,7 +18,7 @@ export class PerplexityAnswerEngine extends OpenAIAnswerEngine {
         client: new OpenAIClient({
           apiKey: process.env.PERPLEXITY_API_KEY,
           baseUrl: 'https://api.perplexity.ai'
-        }),
+        }) as any,
         params: {
           model: 'pplx-70b-chat'
         }
