@@ -37,8 +37,6 @@ export async function respondToNewMentions(ctx: types.Context) {
   if (ctx.earlyExit) {
     if (batch.mentions.length > 0) {
       console.log('mentions', JSON.stringify(batch.mentions, null, 2))
-      // console.log('users', JSON.stringify(batch.users, null, 2))
-      // console.log('tweets', JSON.stringify(batch.tweets, null, 2))
     }
 
     return batch
@@ -234,17 +232,29 @@ export async function respondToNewMentions(ctx: types.Context) {
           }
 
           if (!ctx.dryRun) {
-            const tweet = await createTweet(
-              {
-                text: message.response!,
-                reply: {
-                  in_reply_to_tweet_id: promptTweetId
-                }
-              },
-              ctx
-            )
+            // Mark the message as being processed to prevent duplicate responses
+            // in case of a race condition.
+            message.responseTweetId = `${message.id}-pending`
+            await db.upsertMessage(message)
 
-            setResponseTweet(tweet)
+            try {
+              const tweet = await createTweet(
+                {
+                  text: message.response!,
+                  reply: {
+                    in_reply_to_tweet_id: promptTweetId
+                  }
+                },
+                ctx
+              )
+
+              setResponseTweet(tweet)
+            } catch (tweetError: any) {
+              // If tweet creation fails, clear the pending state
+              delete message.responseTweetId
+              await db.upsertMessage(message) // Persist the cleared state
+              throw tweetError // Re-throw to be caught by the outer catch block
+            }
           }
 
           // Remove any previous error state from processing this message

@@ -20,7 +20,7 @@ export class PerplexityAnswerEngine extends OpenAIAnswerEngine {
           baseUrl: 'https://api.perplexity.ai'
         }) as any,
         params: {
-          model: 'pplx-70b-chat'
+          model: 'sonar'
         }
       })
     }

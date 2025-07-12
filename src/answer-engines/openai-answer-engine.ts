@@ -52,8 +52,25 @@ ${stringifyForModel(query.rawEntityMap)}
 `),
 
       // ...query.rawChatMessages
-      ...query.chatMessages
     ]
+
+    // Ensure chatMessages start with a user or assistant message after system messages
+    // and alternate correctly.
+    // The API expects an alternating sequence of user/assistant messages after system messages.
+    // If query.chatMessages starts with a system message, it will cause an error.
+    // We also need to ensure that the first message after the initial system messages is a user message.
+    const filteredChatMessages = query.chatMessages.filter((msg, index) => {
+      if (index === 0 && msg.role === 'system') {
+        console.warn('Filtering out leading system message from query.chatMessages')
+        return false
+      }
+      return true
+    })
+
+    // Add the filtered chat messages to the main messages array
+    messages.push(...filteredChatMessages)
+
+    console.log('openai messages before run:', messages)
 
     const res = await this._chatModel.run({
       messages,
@@ -65,7 +82,7 @@ ${stringifyForModel(query.rawEntityMap)}
       .replace(/#\w+/g, '')
       .trim()
 
-    console.log('openai', {
+    console.log('openai response:', {
       messages,
       response
     })
